@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1033789658230",
+    "firebase_url": "https://mrgalaxymall-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    "project_id": "mr-quiz-tracker",
+    "storage_bucket": "mr-quiz-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033789658230:android:b49bf3acc63c10fe9b3b57",
+        "android_client_info": {
+          "package_name": "com.example.lokasi_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2mwLx_zqGyJvVwC17hDgfGrlosTWzlrw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

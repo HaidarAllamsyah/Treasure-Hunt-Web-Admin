@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>MR Quiz - Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070d1a; --surface: #0d1829; --surface2: #111f35; --border: #1e3a5f;
+      --accent: #00d4ff; --accent2: #ff6b35; --text: #e0f0ff; --text-dim: #5a8ab0;
+      --green: #00ff88; --red: #ff3355; --yellow: #ffe135;
+      --lt-all: #a50d0d; --lt-g: #d4d41b; --lt-1: #5113cd; --lt-2: #e76408; --lt-3: #a819b3; --lt-4: #12d015;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: "Exo 2", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; height: 58px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    .logo { font-family: "Share Tech Mono", monospace; font-size: 17px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+    .logo span { color: var(--accent2); }
+    #status-koneksi { font-size: 13px; font-family: "Share Tech Mono", monospace; display: flex; align-items: center; gap: 6px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); animation: pulse 2s infinite; }
+    .dot.connected { background: var(--green); } .dot.disconnected { background: var(--red); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .header-stats { margin-left: auto; display: flex; gap: 14px; font-size: 13px; font-family: "Share Tech Mono", monospace; }
+    .stat { color: var(--text-dim); } .stat span { color: var(--accent); font-weight: bold; }
+    .legend { display: flex; gap: 12px; font-size: 13px; align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
+    .leg-circle { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); border: 2px solid white; }
+    .leg-triangle { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--accent2); }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    #sidebar { width: 680px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .tab-btn { flex: 1; padding: 11px 4px; font-size: 12px; font-family: "Share Tech Mono", monospace; color: var(--text-dim); background: transparent; border: none; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; transition: all 0.2s; border-bottom: 2px solid transparent; }
+    .tab-btn.aktif { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .tab-panel.aktif { display: flex; }
+    .players-wrap { display: flex; flex: 1; overflow: hidden; }
+    .players-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+    .players-col:last-child { border-right: none; }
+    .col-title { padding: 10px 12px; font-size: 12px; font-family: "Share Tech Mono", monospace; color: var(--text-dim); letter-spacing: 1px; border-bottom: 1px solid var(--border); text-transform: uppercase; flex-shrink: 0; }
+    .col-scroll { flex: 1; overflow-y: auto; padding: 6px; }
+    .col-scroll::-webkit-scrollbar { width: 3px; }
+    .col-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .kelompok-header { font-size: 11px; font-family: "Share Tech Mono", monospace; color: var(--accent2); letter-spacing: 1px; padding: 5px 4px 3px 4px; margin-top: 5px; }
+    .player-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 5px; display: flex; align-items: flex-start; gap: 6px; cursor: pointer; transition: border-color 0.2s; opacity: 0.4; }
+    .player-card.aktif { opacity: 1; } .player-card.aktif:hover { border-color: var(--accent); background: #162240; }
+    .player-card.keluar { border-color: var(--red) !important; opacity: 0.7; }
+    .player-icon-wrap { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .icon-circle { border-radius: 50%; border: 2px solid white; }
+    .player-info { flex: 1; min-width: 0; }
+    .player-name-row { display: flex; align-items: center; gap: 4px; }
+    .player-name { font-size: 13px; font-weight: 700; font-family: "Share Tech Mono", monospace; cursor: pointer; }
+    .player-name:hover { color: var(--accent); }
+    .edit-btn { font-size: 10px; color: var(--text-dim); cursor: pointer; padding: 1px 3px; border: 1px solid var(--border); border-radius: 2px; background: transparent; }
+    .edit-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .edit-input { font-size: 12px; font-family: "Share Tech Mono", monospace; background: var(--surface2); border: 1px solid var(--accent); border-radius: 3px; color: var(--text); padding: 1px 4px; width: 80px; }
+    .player-tipe { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+    .player-coords { font-size: 11px; color: var(--text-dim); font-family: "Share Tech Mono", monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-skor { font-size: 12px; font-family: "Share Tech Mono", monospace; color: var(--yellow); margin-top: 1px; }
+    .player-status { font-size: 11px; margin-top: 1px; color: var(--text-dim); }
+    .player-items-list { font-size: 10px; margin-top: 2px; }
+    .item-tag { display: inline-block; background: #0d2e1a; border: 1px solid #1a5a2a; color: #00ff88; border-radius: 3px; padding: 1px 4px; font-size: 10px; margin: 1px 1px 0 0; font-family: "Share Tech Mono", monospace; }
+    .item-tag.has-skor { background: #1a2e0d; color: #aaff44; }
+    .player-lantai-badge { background: var(--accent2); color: white; font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; font-family: "Share Tech Mono", monospace; }
+    .device-status { font-size: 11px; font-family: "Share Tech Mono", monospace; color: var(--text-dim); text-align: right; margin-top: 2px; }
+    .ping-good { color: #00ff88; } .ping-mid { color: #ffe135; } .ping-bad { color: #ff3355; }
+    .status-keluar { color: var(--red); font-weight: 700; }
+    .lb-wrap { flex: 1; overflow-y: auto; padding: 8px; }
+    .lb-wrap::-webkit-scrollbar { width: 3px; }
+    .lb-wrap::-webkit-scrollbar-thumb { background: var(--border); }
+    table.lb { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.lb th { text-align: left; padding: 6px 8px; color: var(--text-dim); font-family: "Share Tech Mono", monospace; font-size: 11px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    table.lb td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 12px; }
+    .lb-rank { font-family: "Share Tech Mono", monospace; color: var(--text-dim); }
+    .lb-skor { font-family: "Share Tech Mono", monospace; color: var(--accent); font-weight: 700; }
+    .lb-dur { font-family: "Share Tech Mono", monospace; color: var(--text-dim); font-size: 11px; }
+    .lb-items-detail { font-size: 10px; color: #aaa; margin-top: 2px; line-height: 1.4; }
+    .lb-status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+    .lb-status-dot.online { background: var(--green); } .lb-status-dot.offline { background: var(--text-dim); }
+    .lb-no-data { text-align: center; padding: 20px; color: var(--text-dim); font-size: 13px; }
+    .kelompok-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+    .kelompok-title { font-size: 14px; font-weight: 700; font-family: "Share Tech Mono", monospace; color: var(--accent2); margin-bottom: 6px; }
+    .kelompok-skor-total { font-size: 22px; font-weight: 700; font-family: "Share Tech Mono", monospace; color: var(--yellow); margin-bottom: 6px; }
+    .kelompok-item-row { font-size: 12px; color: var(--text-dim); margin-bottom: 2px; }
+    .kelompok-item-row span { color: var(--green); }
+    .kelompok-members { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    #peta-wrap { flex: 1; position: relative; } #peta { width: 100%; height: 100%; }
+    .popup-custom { font-size: 13px; min-width: 190px; }
+    .popup-custom .nama { font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+    .popup-custom .row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: #555; }
+    .popup-custom .lantai-big { text-align: center; font-size: 28px; font-weight: 700; margin: 3px 0; }
+    .popup-custom .jam-digital { text-align: center; font-family: "Share Tech Mono", monospace; font-size: 17px; font-weight: 700; letter-spacing: 2px; color: #1a1a1a; background: #f0f0f0; border-radius: 6px; padding: 3px 8px; margin: 5px 0 3px 0; border: 1px solid #ccc; }
+    .popup-custom .skor-box { background: #1a1a2e; border: 1px solid #ffe135; border-radius: 5px; padding: 3px 8px; margin: 3px 0; text-align: center; font-family: "Share Tech Mono", monospace; font-size: 14px; color: #ffe135; font-weight: 700; }
+    .popup-custom .status-box { border-radius: 5px; padding: 2px 8px; margin: 2px 0; text-align: center; font-size: 12px; font-weight: 600; }
+    .popup-custom .item-section { margin-top: 3px; padding: 3px 6px; background: #0a1520; border-radius: 4px; font-size: 12px; }
+    .popup-custom .item-section-title { color: #5a8ab0; margin-bottom: 2px; }
+    .status-full { background: #0d2e1a; color: #00ff88; border: 1px solid #00ff88; }
+    .status-holo-only { background: #1a1a0d; color: #ffe135; border: 1px solid #ffe135; }
+    .status-gps-only { background: #0d1a2e; color: #00d4ff; border: 1px solid #00d4ff; }
+    .status-offline { background: #1a0d0d; color: #ff3355; border: 1px solid #ff3355; }
+    .status-keluar-box { background: #2e0d0d; color: #ff5555; border: 1px solid #ff3355; }
+    #panel-lantai { position: absolute; top: 12px; right: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; z-index: 1000; display: flex; flex-direction: column; gap: 5px; }
+    .lantai-label { font-size: 11px; font-family: "Share Tech Mono", monospace; color: var(--text-dim); letter-spacing: 1px; text-align: center; }
+    .lantai-btn { width: 36px; height: 36px; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); font-family: "Share Tech Mono", monospace; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .lantai-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .lantai-btn.aktif { font-weight: 700; color: #fff; } .lantai-btn.all { font-size: 11px; }
+    .lantai-btn.all.aktif { background: var(--lt-all); border-color: var(--lt-all); }
+    .lantai-btn.lantai-g-btn { color: #8aab8c; border-color: #4a6b4c; } .lantai-btn.lantai-g-btn.aktif { background: var(--lt-g); border-color: var(--lt-g); color: #fff; }
+    .lantai-btn.lantai-1-btn { color: #9d8ab5; border-color: #4e4066; } .lantai-btn.lantai-1-btn.aktif { background: var(--lt-1); border-color: var(--lt-1); color: #fff; }
+    .lantai-btn.lantai-2-btn { color: #a8826a; border-color: #5a4030; } .lantai-btn.lantai-2-btn.aktif { background: var(--lt-2); border-color: var(--lt-2); color: #fff; }
+    .lantai-btn.lantai-3-btn { color: #6aa3b5; border-color: #2a5060; } .lantai-btn.lantai-3-btn.aktif { background: var(--lt-3); border-color: var(--lt-3); color: #fff; }
+    .lantai-btn.lantai-4-btn { color: #b07885; border-color: #5a3040; } .lantai-btn.lantai-4-btn.aktif { background: var(--lt-4); border-color: var(--lt-4); color: #fff; }
+    #map-toggle { position: absolute; top: 12px; left: 12px; z-index: 1000; display: flex; gap: 5px; }
+    .map-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 6px 12px; color: var(--text-dim); font-family: "Share Tech Mono", monospace; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+    .map-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .map-btn.aktif { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+    #btn-reset { position: absolute; bottom: 12px; right: 12px; background: var(--surface); border: 1px solid var(--red); border-radius: 7px; padding: 7px 12px; color: var(--red); font-family: "Share Tech Mono", monospace; font-size: 12px; cursor: pointer; z-index: 1000; transition: all 0.2s; }
+    #btn-reset:hover { background: #1a0d0d; }
+    #rename-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; }
+    #rename-modal.show { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; min-width: 260px; }
+    .modal-title { font-family: "Share Tech Mono", monospace; font-size: 15px; color: var(--accent); margin-bottom: 12px; }
+    .modal-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 8px 10px; font-size: 14px; font-family: "Share Tech Mono", monospace; margin-bottom: 12px; }
+    .modal-input:focus { outline: none; border-color: var(--accent); }
+    .modal-btns { display: flex; gap: 8px; }
+    .modal-save { flex: 1; background: var(--accent); border: none; border-radius: 5px; padding: 8px; color: #000; font-weight: 700; cursor: pointer; font-family: "Share Tech Mono", monospace; font-size: 13px; }
+    .modal-cancel { flex: 1; background: transparent; border: 1px solid var(--border); border-radius: 5px; padding: 8px; color: var(--text-dim); cursor: pointer; font-family: "Share Tech Mono", monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">MR Quiz <span>ADMIN</span></div>
+    <div id="status-koneksi"><div class="dot" id="dot"></div><span id="status-teks">Menghubungkan...</span></div>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-circle"></div> HoloLens</div>
+      <div class="legend-item"><div class="leg-triangle"></div> Mobile</div>
+    </div>
+    <div class="header-stats">
+      <div class="stat">Aktif: <span id="jml-aktif">0</span>/15</div>
+      <div class="stat">Game: <span id="jml-holo">0</span></div>
+      <div class="stat">GPS: <span id="jml-mobile">0</span></div>
+      <div class="stat">Top Skor: <span id="skor-tertinggi">-</span></div>
+    </div>
+  </header>
+  <div class="main">
+    <div id="sidebar">
+      <div class="sidebar-tabs">
+        <button class="tab-btn aktif" onclick="bukaTab('players')">Players</button>
+        <button class="tab-btn" onclick="bukaTab('lb-player')">LB Player</button>
+        <button class="tab-btn" onclick="bukaTab('lb-kelompok')">LB Kelompok</button>
+      </div>
+      <div class="tab-panel aktif" id="tab-players">
+        <div class="players-wrap">
+          <div class="players-col">
+            <div class="col-title">Kelompok 1-3</div>
+            <div class="col-scroll" id="col-kiri"></div>
+          </div>
+          <div class="players-col">
+            <div class="col-title">Kelompok 4-5</div>
+            <div class="col-scroll" id="col-kanan"></div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-panel" id="tab-lb-player">
+        <div class="lb-wrap">
+          <table class="lb">
+            <thead><tr><th>#</th><th>Player</th><th>Skor</th><th>Item</th><th>LT1</th><th>LT2</th><th>LT3</th><th>St</th></tr></thead>
+            <tbody id="lb-player-body"><tr><td colspan="8" class="lb-no-data">-</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-panel" id="tab-lb-kelompok">
+        <div class="lb-wrap" id="lb-kelompok-body"><div class="lb-no-data">-</div></div>
+      </div>
+    </div>
+    <div id="peta-wrap">
+      <div id="peta"></div>
+      <div id="map-toggle">
+        <button class="map-btn aktif" onclick="gantiMap('normal',event)">Peta</button>
+        <button class="map-btn" onclick="gantiMap('satelit',event)">Satelit</button>
+      </div>
+      <div id="panel-lantai">
+        <div class="lantai-label">LANTAI</div>
+        <button class="lantai-btn all aktif" onclick="filterLantai(0)">ALL</button>
+        <button class="lantai-btn lantai-g-btn" onclick="filterLantai('G')">G</button>
+        <button class="lantai-btn lantai-1-btn" onclick="filterLantai(1)">1</button>
+        <button class="lantai-btn lantai-2-btn" onclick="filterLantai(2)">2</button>
+        <button class="lantai-btn lantai-3-btn" onclick="filterLantai(3)">3</button>
+        <button class="lantai-btn lantai-4-btn" onclick="filterLantai(4)">4</button>
+      </div>
+      <button id="btn-reset" onclick="resetSemuaData()">Reset All</button>
+    </div>
+  </div>
+  <div id="rename-modal">
+    <div class="modal-box">
+      <div class="modal-title">Ganti Nama Player</div>
+      <input class="modal-input" id="rename-input" type="text" placeholder="Nama baru...">
+      <div class="modal-btns">
+        <button class="modal-save" onclick="simpanNama()">Simpan</button>
+        <button class="modal-cancel" onclick="tutupModal()">Batal</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAT92O2Ej6u5utPtutcyw5dMOvmq-oxXAY",
+      authDomain: "mrgalaxymall.firebaseapp.com",
+      databaseURL: "https://mrgalaxymall-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "mrgalaxymall",
+      storageBucket: "mrgalaxymall.firebasestorage.app",
+      messagingSenderId: "88915926814",
+      appId: "1:88915926814:web:fde190cf7aa416b9a0f30f"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const peta = L.map('peta', { maxZoom: 22 }).setView([-7.2827, 112.7958], 17);
+    const layerNormal = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '(c) OpenStreetMap', maxZoom: 22 });
+    const layerSatelit = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google Satellite', maxZoom: 22 });
+    layerNormal.addTo(peta);
+
+    function gantiMap(mode, e) {
+      document.querySelectorAll('.map-btn').forEach(b => b.classList.remove('aktif'));
+      e.target.classList.add('aktif');
+      if (mode === 'normal') { if (peta.hasLayer(layerSatelit)) peta.removeLayer(layerSatelit); if (!peta.hasLayer(layerNormal)) layerNormal.addTo(peta); }
+      else { if (peta.hasLayer(layerNormal)) peta.removeLayer(layerNormal); if (!peta.hasLayer(layerSatelit)) layerSatelit.addTo(peta); }
+    }
+
+    const TOTAL = 15;
+    const KELOMPOK = { 1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12], 5: [13, 14, 15] };
+    const HOLOLENS_PLAYERS = [10, 13];
+    const WARNA = ['#00d4ff', '#ff6b35', '#00ff88', '#ff3381', '#ffe135', '#a855f7', '#ff9500', '#00e5ff', '#ff5252', '#69ff47', '#00ffcc', '#ff69b4', '#ffd700', '#7fff00', '#ff4500'];
+    const WARNA_LANTAI = { 'G': { bg: '#d4d41b', text: '#fff' }, 1: { bg: '#5113cd', text: '#fff' }, 2: { bg: '#e76408', text: '#fff' }, 3: { bg: '#a819b3', text: '#fff' }, 4: { bg: '#12d015', text: '#fff' } };
+    function warnLantai(lt) { return WARNA_LANTAI[lt] || { bg: '#4a5568', text: '#e2e8f0' }; }
+
+    const namaPlayer = {};
+    for (let i = 1; i <= TOTAL; i++) namaPlayer['player' + i] = 'Player ' + i;
+
+    function updateJamPopup() {
+      const now = new Date();
+      const s = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+      document.querySelectorAll('[id^="jam-popup-p"]').forEach(el => el.textContent = s);
+    }
+    setInterval(updateJamPopup, 1000); updateJamPopup();
+
+    const dataPlayer = {}, dataLeaderboard = {}, markers = {};
+    let filterLantaiAktif = 0, initialViewCentered = false;
+
+    let renameKey = null;
+    function bukaRename(key) {
+      renameKey = key;
+      document.getElementById('rename-input').value = namaPlayer[key] || '';
+      document.getElementById('rename-modal').classList.add('show');
+      setTimeout(() => document.getElementById('rename-input').focus(), 100);
+    }
+    function tutupModal() {
+      document.getElementById('rename-modal').classList.remove('show');
+      renameKey = null;
+    }
+    function simpanNama() {
+      if (!renameKey) return;
+      const nama = document.getElementById('rename-input').value.trim();
+      if (!nama) return;
+      namaPlayer[renameKey] = nama;
+      db.ref('leaderboard/' + renameKey + '/nama').set(nama);
+      const el = document.getElementById('pname-' + renameKey);
+      if (el) el.textContent = nama;
+      tutupModal();
+      updateAllLeaderboards();
+    }
+
+    function bukaTab(nama) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('aktif', ['players', 'lb-player', 'lb-kelompok'][i] === nama));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('aktif'));
+      document.getElementById('tab-' + nama).classList.add('aktif');
+    }
+
+    function buatCards() {
+      const colKiri = document.getElementById('col-kiri');
+      const colKanan = document.getElementById('col-kanan');
+      for (let k = 1; k <= 5; k++) {
+        const target = k <= 3 ? colKiri : colKanan;
+        const hdr = document.createElement('div');
+        hdr.className = 'kelompok-header';
+        hdr.textContent = '— KELOMPOK ' + k + ' —';
+        target.appendChild(hdr);
+        KELOMPOK[k].forEach(i => {
+          const key = 'player' + i;
+          const warna = WARNA[i - 1];
+          const div = document.createElement('div');
+          div.className = 'player-card';
+          div.id = 'card-' + key;
+          div.onclick = () => focusPlayer(key);
+          div.innerHTML = `
+            <div class="player-icon-wrap" id="icon-wrap-${key}">
+              <div class="icon-circle" style="background:${warna};width:16px;height:16px;opacity:0.3"></div>
+            </div>
+            <div class="player-info">
+              <div class="player-name-row">
+                <span class="player-name" id="pname-${key}" style="color:${warna}" onclick="event.stopPropagation();bukaRename('${key}')">${namaPlayer[key]}</span>
+                <button class="edit-btn" onclick="event.stopPropagation();bukaRename('${key}')">✎</button>
+              </div>
+              <div class="player-tipe" id="tipe-${key}">${HOLOLENS_PLAYERS.includes(i) ? 'HoloLens' : 'Android'}</div>
+              <div class="player-coords" id="coords-${key}">-</div>
+              <div class="player-skor" id="skor-${key}">Skor: -</div>
+              <div class="player-status" id="holo-status-${key}">Game tidak aktif</div>
+              <div class="player-items-list" id="items-${key}"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+              <div class="player-lantai-badge" id="lantai-${key}" style="display:none">Lt?</div>
+              <div class="device-status" id="device-status-${key}"></div>
+            </div>`;
+          target.appendChild(div);
+        });
+      }
+    }
+    buatCards();
+
+    function ikonBulat(w) { return L.divIcon({ html: `<div style="width:18px;height:18px;border-radius:50%;background:${w};border:3px solid white;box-shadow:0 0 8px ${w}88;"></div>`, iconSize: [18, 18], iconAnchor: [9, 9], className: '' }); }
+    function ikonSegitiga(w) { return L.divIcon({ html: `<div style="width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${w};filter:drop-shadow(0 0 4px ${w}88);"></div>`, iconSize: [20, 20], iconAnchor: [10, 20], className: '' }); }
+
+    function getStatus(key) {
+      const g = !!dataPlayer[key];
+      const lb = dataLeaderboard[key];
+      const h = !!(lb && lb.holo_online);
+      const keluar = !!(lb && lb.status === 'keluar');
+      if (keluar) return { label: 'Player Keluar', cls: 'status-keluar-box' };
+      if (g && h) return { label: 'Full active', cls: 'status-full' };
+      if (h && !g) return { label: 'Game only', cls: 'status-holo-only' };
+      if (g && !h) return { label: 'GPS only', cls: 'status-gps-only' };
+      return { label: 'Offline', cls: 'status-offline' };
+    }
+
+    function getItemSkor(v) {
+      if (!v || v.skor == null) return 0;
+      if (typeof v.skor === 'number') return v.skor;
+      const parsed = Number(v.skor);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatItemTags(itemList) {
+      if (!itemList || Object.keys(itemList).length === 0) return '';
+      return Object.entries(itemList).map(([id, v]) => {
+        const skor = getItemSkor(v);
+        return `<span class="item-tag has-skor">${id}(${skor})</span>`;
+      }).join('');
+    }
+
+    function updateItemTags(key) {
+      const lb = dataLeaderboard[key], el = document.getElementById('items-' + key);
+      if (!el) return;
+      if (!lb || !lb.itemList) { el.innerHTML = ''; return; }
+      el.innerHTML = formatItemTags(lb.itemList);
+    }
+
+    function updateCard(key, data, warna) {
+      const card = document.getElementById('card-' + key); if (!card) return;
+      card.classList.add('aktif');
+      const iconWrap = document.getElementById('icon-wrap-' + key);
+      if (data.tipe === 'hololens') { iconWrap.innerHTML = `<div class="icon-circle" style="background:${warna};width:16px;height:16px"></div>`; }
+      else { iconWrap.innerHTML = `<div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:14px solid ${warna}"></div>`; }
+      document.getElementById('coords-' + key).textContent = `${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`;
+      const lb = document.getElementById('lantai-' + key);
+      lb.style.display = 'block';
+      const lef = getLantaiEfektif(data); lb.textContent = 'Lt ' + lef;
+      const wl = warnLantai(lef); lb.style.background = wl.bg; lb.style.color = wl.text;
+      updateDeviceStatus(key); updateStats();
+    }
+
+    function updateDeviceStatus(key) {
+      const st = getStatus(key);
+      const el = document.getElementById('device-status-' + key);
+      if (el) el.textContent = st.label;
+      const card = document.getElementById('card-' + key);
+      if (card) card.classList.toggle('keluar', st.label === 'Player Keluar');
+    }
+
+    function durStr(detik) {
+      if (!detik || detik === 0) return '-';
+      const m = Math.floor(detik / 60), s = detik % 60;
+      return m + 'm' + String(s).padStart(2, '0') + 's';
+    }
+
+    function updateLBPlayer() {
+      const entries = [];
+      for (let i = 1; i <= TOTAL; i++) {
+        const key = 'player' + i;
+        const d = dataLeaderboard[key];
+        if (!d || typeof d.skor !== 'number') continue;
+        entries.push([key, d, i]);
+      }
+      entries.sort(([, a], [, b]) => {
+        if (b.skor !== a.skor) return b.skor - a.skor;
+        const ia = a.itemList ? Object.keys(a.itemList).length : 0;
+        const ib = b.itemList ? Object.keys(b.itemList).length : 0;
+        if (ib !== ia) return ib - ia;
+        const da = (a.durasiLT ? (a.durasiLT.lt1 || 0) + (a.durasiLT.lt2 || 0) + (a.durasiLT.lt3 || 0) : 0);
+        const db2 = (b.durasiLT ? (b.durasiLT.lt1 || 0) + (b.durasiLT.lt2 || 0) + (b.durasiLT.lt3 || 0) : 0);
+        return da - db2;
+      });
+      const tbody = document.getElementById('lb-player-body');
+      if (entries.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="lb-no-data">-</td></tr>'; return; }
+      const rankIcon = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+      tbody.innerHTML = entries.map(([key, d, pNum], idx) => {
+        const warna = WARNA[pNum - 1];
+        const itemCount = d.itemList ? Object.keys(d.itemList).length : 0;
+        const itemDetail = d.itemList ? Object.entries(d.itemList).map(([id, v]) => `${id}(${getItemSkor(v)})`).join(', ') : '';
+        const dur = d.durasiLT || {};
+        const isOnline = d.holo_online;
+        const keluar = d.status === 'keluar';
+        return `<tr>
+          <td class="lb-rank">${rankIcon(idx)}</td>
+          <td style="color:${warna};font-weight:700">${namaPlayer[key] || 'P' + pNum}<br><span style="font-size:11px;color:var(--text-dim)">${keluar ? 'Keluar' : isOnline ? 'ON' : 'OFF'}</span></td>
+          <td class="lb-skor">${d.skor}</td>
+          <td>${itemCount}</td>
+          <td class="lb-dur">${durStr(dur.lt1)}</td>
+          <td class="lb-dur">${durStr(dur.lt2)}</td>
+          <td class="lb-dur">${durStr(dur.lt3)}</td>
+          <td><span class="lb-status-dot ${isOnline ? 'online' : 'offline'}"></span></td>
+        </tr>
+        <tr><td colspan="8" style="padding:1px 8px 6px 8px;font-size:11px;color:#aaa">${itemDetail || '-'}</td></tr>`;
+      }).join('');
+    }
+
+    function updateLBKelompok() {
+      const container = document.getElementById('lb-kelompok-body');
+      const kelompokData = [];
+      for (let k = 1; k <= 5; k++) {
+        const members = KELOMPOK[k];
+        const itemMap = {};
+        members.forEach(i => {
+          const key = 'player' + i;
+          const d = dataLeaderboard[key];
+          if (!d || !d.itemList) return;
+          Object.entries(d.itemList).forEach(([itemId, v]) => {
+            const skor = v && typeof v.skor === 'number' ? v.skor : 0;
+            if (!itemMap[itemId]) itemMap[itemId] = [];
+            itemMap[itemId].push({ key, skor, nama: namaPlayer[key] || 'P' + i });
+          });
+        });
+        let totalSkor = 0;
+        const itemBest = [];
+        Object.entries(itemMap).forEach(([itemId, arr]) => {
+          const best = arr.reduce((a, b) => a.skor >= b.skor ? a : b);
+          totalSkor += best.skor;
+          itemBest.push({ itemId, skor: best.skor, dari: best.nama });
+        });
+        kelompokData.push({ k, members, totalSkor, itemBest });
+      }
+      kelompokData.sort((a, b) => b.totalSkor - a.totalSkor);
+      if (kelompokData.every(k => k.totalSkor === 0)) {
+        container.innerHTML = '<div class="lb-no-data">Belum ada data</div>';
+        return;
+      }
+      container.innerHTML = kelompokData.map((kd, idx) => {
+        const rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '';
+        const memberNames = kd.members.map(i => namaPlayer['player' + i] || 'P' + i).join(', ');
+        const itemRows = kd.itemBest.map(ib => `<div class="kelompok-item-row">• ${ib.itemId}: <span>${ib.skor} poin</span> (dari ${ib.dari})</div>`).join('');
+        return `<div class="kelompok-card">
+          <div class="kelompok-title">${rankIcon} Kelompok ${kd.k}</div>
+          <div class="kelompok-skor-total">${kd.totalSkor} poin</div>
+          ${itemRows || '<div class="kelompok-item-row">Belum ada item</div>'}
+          <div class="kelompok-members">Anggota: ${memberNames}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function updateAllLeaderboards() { updateLBPlayer(); updateLBKelompok(); }
+
+    function updateStats() {
+      const aktif = Object.values(dataPlayer).filter(d => d).length;
+      const holo = Object.values(dataPlayer).filter(d => d && d.tipe === 'hololens').length;
+      const mob = Object.values(dataPlayer).filter(d => d && d.tipe === 'mobile').length;
+      document.getElementById('jml-aktif').textContent = aktif;
+      document.getElementById('jml-holo').textContent = holo;
+      document.getElementById('jml-mobile').textContent = mob;
+      const skors = Object.values(dataLeaderboard).filter(d => d && typeof d.skor === 'number').map(d => d.skor);
+      if (skors.length > 0) document.getElementById('skor-tertinggi').textContent = Math.max(...skors);
+    }
+
+    function focusPlayer(key) { const data = dataPlayer[key]; if (!data) return; peta.setView([data.lat, data.lng], 20); if (markers[key]) markers[key].openPopup(); }
+
+    function filterLantai(lantai) {
+      filterLantaiAktif = lantai;
+      document.querySelectorAll('.lantai-btn').forEach(btn => {
+        const v = btn.textContent.trim();
+        const match = (lantai === 0 && v === 'ALL') || (lantai === 'G' && v === 'G') || (typeof lantai === 'number' && lantai > 0 && v === String(lantai));
+        btn.classList.toggle('aktif', match);
+      });
+      for (let i = 1; i <= TOTAL; i++) {
+        const key = 'player' + i, data = dataPlayer[key], marker = markers[key];
+        if (!marker || !data) continue;
+        const ld = getLantaiEfektif(data), tampil = lantai === 0 || ld === lantai;
+        if (tampil) { if (!peta.hasLayer(marker)) marker.addTo(peta); }
+        else { if (peta.hasLayer(marker)) marker.remove(); }
+      }
+    }
+
+    function getLantaiEfektif(data) {
+      if (data.lantai !== undefined && data.lantai !== null && data.lantai !== 0 && data.lantai !== '0') return data.lantai;
+      const ag = data.altitude_gps !== undefined ? parseFloat(data.altitude_gps) : null;
+      if (ag !== null && ag >= 36.0 && ag <= 38.0) return 'G';
+      return 1;
+    }
+
+    function buatPopup(key, data, warna, idx) {
+      const lb = dataLeaderboard[key] || {};
+      const tipe = data.tipe || 'mobile';
+      const lantai = getLantaiEfektif(data);
+      const st = getStatus(key);
+      const altGPS = data.altitude_gps ? `<div class="row"><span>GPS alt</span><span>${parseFloat(data.altitude_gps).toFixed(1)} m</span></div>` : '';
+      const pingHtml = typeof data.ping === 'number' ? (() => { const ms = data.ping, col = ms < 300 ? '#00ff88' : ms < 800 ? '#ffe135' : '#ff3355', lbl = ms < 300 ? 'Bagus' : ms < 800 ? 'Sedang' : 'Lambat'; return `<div class="row"><span>Ping</span><span style="color:${col};font-weight:700">${ms}ms ${lbl}</span></div>`; })() : '';
+      const skorHtml = lb.skor !== undefined ? `<div class="skor-box">Skor: ${lb.skor}</div>` : '';
+      const itemHtml = lb.itemList && Object.keys(lb.itemList).length > 0 ? `<div class="item-section"><div class="item-section-title">Item diambil:</div><div>${Object.entries(lb.itemList).map(([id, v]) => `<span class="item-tag">${id}(${getItemSkor(v)})</span>`).join('')}</div></div>` : '';
+      return `<div class="popup-custom">
+        <div class="nama" style="color:${warna}">${namaPlayer[key] || 'Player ' + idx}</div>
+        <div class="${st.cls} status-box">${st.label}</div>
+        <div class="row"><span>Tipe</span><span>${tipe === 'hololens' ? 'HoloLens' : 'Mobile'}</span></div>
+        <div class="lantai-big" style="color:${warnLantai(lantai).bg}">Lt ${lantai}</div>
+        <div class="row"><span>Lat</span><span>${data.lat.toFixed(5)}</span></div>
+        <div class="row"><span>Lng</span><span>${data.lng.toFixed(5)}</span></div>
+        ${altGPS}${pingHtml}${skorHtml}${itemHtml}
+        <div class="jam-digital" id="jam-popup-p${idx}">00:00:00</div>
+      </div>`;
+    }
+
+    for (let i = 1; i <= TOTAL; i++) {
+      const key = 'player' + i, warna = WARNA[i - 1], idx = i;
+      db.ref('players/' + key).on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data || !data.lat || !data.lng) { if (dataPlayer[key]) { delete dataPlayer[key]; updateDeviceStatus(key); updateStats(); } return; }
+        dataPlayer[key] = data;
+        const posisi = [data.lat, data.lng];
+        if (!initialViewCentered) { peta.setView(posisi, 17); initialViewCentered = true; }
+        const tipe = data.tipe || 'mobile', lantai = getLantaiEfektif(data);
+        const ikon = tipe === 'hololens' ? ikonBulat(warna) : ikonSegitiga(warna);
+        const popupHtml = buatPopup(key, data, warna, idx);
+        if (!markers[key]) {
+          markers[key] = L.marker(posisi, { icon: ikon }).bindPopup(popupHtml, { maxWidth: 220 });
+          const tampil = filterLantaiAktif === 0 || lantai === filterLantaiAktif;
+          if (tampil) markers[key].addTo(peta);
+        } else {
+          markers[key].setLatLng(posisi); markers[key].setIcon(ikon); markers[key].setPopupContent(popupHtml);
+          if (markers[key].isPopupOpen()) markers[key].update();
+          const tampil = filterLantaiAktif === 0 || lantai === filterLantaiAktif;
+          if (tampil && !peta.hasLayer(markers[key])) markers[key].addTo(peta);
+          if (!tampil && peta.hasLayer(markers[key])) markers[key].remove();
+        }
+        updateJamPopup(); updateCard(key, data, warna);
+      });
+    }
+
+    for (let i = 1; i <= TOTAL; i++) {
+      const key = 'player' + i, warna = WARNA[i - 1], idx = i;
+      db.ref('leaderboard/' + key).on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data) {
+          delete dataLeaderboard[key]; updateDeviceStatus(key);
+          const he = document.getElementById('holo-status-' + key); if (he) { he.textContent = 'Game tidak aktif'; he.style.color = '#5a8ab0'; }
+          const se = document.getElementById('skor-' + key); if (se) se.textContent = 'Skor: -';
+          const ie = document.getElementById('items-' + key); if (ie) ie.innerHTML = '';
+          updateStats(); updateAllLeaderboards(); return;
+        }
+        dataLeaderboard[key] = data;
+        if (data.nama && data.nama !== namaPlayer[key]) {
+          namaPlayer[key] = data.nama;
+          const el = document.getElementById('pname-' + key);
+          if (el) el.textContent = data.nama;
+        }
+        const se = document.getElementById('skor-' + key); if (se) se.textContent = 'Skor: ' + (data.skor || 0);
+        const he = document.getElementById('holo-status-' + key);
+        if (he) {
+          if (data.status === 'keluar') { he.textContent = 'Player Keluar'; he.style.color = '#ff3355'; }
+          else if (data.holo_online) { he.textContent = 'Game sedang aktif'; he.style.color = '#00ff88'; const card = document.getElementById('card-' + key); if (card) card.classList.add('aktif'); }
+          else { he.textContent = 'Game tidak aktif'; he.style.color = '#5a8ab0'; }
+        }
+        updateItemTags(key);
+        if (markers[key] && dataPlayer[key]) markers[key].setPopupContent(buatPopup(key, dataPlayer[key], warna, idx));
+        updateDeviceStatus(key); updateStats(); updateAllLeaderboards();
+      });
+    }
+
+    async function resetSemuaData() {
+      if (!confirm('Reset semua data leaderboard dan items?')) return;
+      await db.ref('leaderboard').remove();
+      await db.ref('items').remove();
+      alert('Data berhasil direset!');
+    }
+
+    db.ref('.info/connected').on('value', snap => {
+      const dot = document.getElementById('dot'), teks = document.getElementById('status-teks');
+      if (snap.val()) { dot.className = 'dot connected'; teks.textContent = 'Terhubung ke Firebase'; teks.style.color = '#00ff88'; }
+      else { dot.className = 'dot disconnected'; teks.textContent = 'Terputus'; teks.style.color = '#ff3355'; }
+    });
+  </script>
+</body>
+</html>
